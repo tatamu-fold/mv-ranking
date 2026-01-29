@@ -101,7 +101,8 @@ def send_telegram_message(msg, channel_id):
         while attempt < max_retries:
             try:
                 payload = {
-                    "chat_id": channel_id,
+                    "message_thread_id": "2030",
+                    "chat_id": "-1002646331785",  # "chat_id": "-1002350782955",
                     "text": part,
                     "link_preview_options": {"is_disabled": True},
                     "parse_mode": "MarkdownV2",
