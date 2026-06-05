@@ -58,84 +58,87 @@ for row in rows:
 
 # Sort by yesterday's views descending, top 20
 top_20_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)[:20]
+top_20_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)[:20]
 
-# Find the maximum width needed for the formatted numbers (for perfect alignment)
-max_yesterday = max(video["yesterday_views"] for video in top_20_yesterday)
-max_total = max(video["total_views"] for video in top_20_yesterday)
+for list_item in (top_20_yesterday, top_20_total):
 
-width_yesterday = len(format_japanese_style(max_yesterday))
-width_total = len(format_japanese_style(max_total))
+    # Find the maximum width needed for the formatted numbers (for perfect alignment)
+    max_yesterday = max(video["yesterday_views"] for video in list_item)
+    max_total = max(video["total_views"] for video in list_item)
 
-print("Top 20 Nogizaka46 MVs by views gained yesterday:")
-print("=" * 80)
+    width_yesterday = len(format_japanese_style(max_yesterday))
+    width_total = len(format_japanese_style(max_total))
 
-result = ""
+    print("Top 20 Nogizaka46 MVs by views gained yesterday:")
+    print("=" * 80)
 
-for i, video in enumerate(top_20_yesterday, 1):
-    yesterday_str = format_japanese_style(video["yesterday_views"])
-    total_str = format_japanese_style(video["total_views"])
+    result = ""
 
-    result += f"{i:2}. {video['title']}\n"
-    result += f"昨: {yesterday_str:>{width_total}}\n"
-    result += f"合: {total_str:>{width_total}}\n"
+    for i, video in enumerate(list_item, 1):
+        yesterday_str = format_japanese_style(video["yesterday_views"])
+        total_str = format_japanese_style(video["total_views"])
 
-    result += "\n"
+        result += f"{i:2}. {video['title']}\n"
+        result += f"昨: {yesterday_str:>{width_total}}\n"
+        result += f"合: {total_str:>{width_total}}\n"
 
-    print(result)
+        result += "\n"
 
-result = "```" + result + "```"
+        print(result)
 
-import time
-import os
+    result = "```" + result + "```"
 
-TELEGRAM_BOT_TOKEN = os.environ["bot_token"]
-TELEGRAM_CHAT_ID = "-1002350782955"  # os.environ["chat_id"]
+    import time
+    import os
+
+    TELEGRAM_BOT_TOKEN = os.environ["bot_token"]
+    TELEGRAM_CHAT_ID = "-1002350782955"  # os.environ["chat_id"]
 
 
-def send_telegram_message(msg, channel_id):
-    max_retries = 5
-    MAX_LENGTH = 3000
+    def send_telegram_message(msg, channel_id):
+        max_retries = 5
+        MAX_LENGTH = 3000
 
-    def send_part(part):
-        attempt = 0
-        while attempt < max_retries:
-            try:
-                payload = {
-                    "message_thread_id": "2030",
-                    "chat_id": "-1002646331785",  # "chat_id": "-1002350782955",
-                    "text": part,
-                    "link_preview_options": {"is_disabled": True},
-                    "parse_mode": "MarkdownV2",
-                }
-                response = requests.post(
-                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                    json=payload,
-                )
-                response_json = response.json()
-                if response.ok:
-                    print(response_json)
-                    time.sleep(2)
-                    return
-                else:
-                    raise Exception(response_json.get("description", "Unknown error"))
-            except Exception as error:
-                print(f"Error: {error}")
+        def send_part(part):
+            attempt = 0
+            while attempt < max_retries:
+                try:
+                    payload = {
+                        "message_thread_id": "2030",
+                        "chat_id": "-1002646331785",  # "chat_id": "-1002350782955",
+                        "text": part,
+                        "link_preview_options": {"is_disabled": True},
+                        "parse_mode": "MarkdownV2",
+                    }
+                    response = requests.post(
+                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                        json=payload,
+                    )
+                    response_json = response.json()
+                    if response.ok:
+                        print(response_json)
+                        time.sleep(2)
+                        return
+                    else:
+                        raise Exception(response_json.get("description", "Unknown error"))
+                except Exception as error:
+                    print(f"Error: {error}")
 
-            attempt += 1
-            print(f"Retrying... ({attempt}/{max_retries})")
-            time.sleep(20)
+                attempt += 1
+                print(f"Retrying... ({attempt}/{max_retries})")
+                time.sleep(20)
 
-    # Split by \n and accumulate parts <= MAX_LENGTH
-    parts = msg.split("\n")
-    current_part = ""
-    for part in parts:
-        if len(current_part) + len(part) + 1 > MAX_LENGTH:
+        # Split by \n and accumulate parts <= MAX_LENGTH
+        parts = msg.split("\n")
+        current_part = ""
+        for part in parts:
+            if len(current_part) + len(part) + 1 > MAX_LENGTH:
+                send_part(current_part)
+                current_part = ""
+            current_part += ("" if not current_part else "\n") + part
+
+        if current_part:
             send_part(current_part)
-            current_part = ""
-        current_part += ("" if not current_part else "\n") + part
-
-    if current_part:
-        send_part(current_part)
 
 
-send_telegram_message(result, TELEGRAM_CHAT_ID)
+    send_telegram_message(result, TELEGRAM_CHAT_ID)
