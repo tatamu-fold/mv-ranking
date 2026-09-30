@@ -1,3 +1,5 @@
+import os
+import time
 import requests
 from bs4 import BeautifulSoup
 
@@ -12,13 +14,64 @@ def format_japanese_style(number):
     return " ".join(reversed(groups)).strip()
 
 
-# Fetch the page
+# Telegram message sender function
+def send_telegram_message(msg, channel_id, thread_id="2030"):
+    TELEGRAM_BOT_TOKEN = os.environ.get("bot_token")
+    max_retries = 5
+    MAX_LENGTH = 3000
+
+    def send_part(part):
+        attempt = 0
+        while attempt < max_retries:
+            try:
+                payload = {
+                    "message_thread_id": thread_id,
+                    "chat_id": channel_id,
+                    "text": part,
+                    "link_preview_options": {"is_disabled": True},
+                    "parse_mode": "MarkdownV2",
+                }
+                response = requests.post(
+                    f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_BOT_TOKEN}/sendMessage",
+                    json=payload,
+                )
+                response_json = response.json()
+                if response.ok:
+                    print(response_json)
+                    time.sleep(2)
+                    return
+                else:
+                    raise Exception(
+                        response_json.get("description", "Unknown error")
+                    )
+            except Exception as error:
+                print(f"Error: {error}")
+
+            attempt += 1
+            print(f"Retrying... ({attempt}/{max_retries})")
+            time.sleep(20)
+
+    # Split by \n and accumulate parts <= MAX_LENGTH
+    parts = msg.split("\n")
+    current_part = ""
+    for part in parts:
+        if len(current_part) + len(part) + 1 > MAX_LENGTH:
+            send_part(current_part)
+            current_part = ""
+        current_part += ("" if not current_part else "\n") + part
+
+    if current_part:
+        send_part(current_part)
+
+
+# -------------------------------------------------------------
+# Fetch and Parse Data
+# -------------------------------------------------------------
 url = "https://saka46.fun/nogi/mv/"
 response = requests.get(url)
 response.raise_for_status()
 response.encoding = response.apparent_encoding
 
-# Parse HTML
 soup = BeautifulSoup(response.text, "html.parser")
 table = soup.find("table")
 if not table:
@@ -56,89 +109,53 @@ for row in rows:
         }
     )
 
-# Sort by yesterday's views descending, top 20
+# Sort rankings
 top_20_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)[:20]
 top_20_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)[:20]
 
+TELEGRAM_CHAT_ID = "-1002646331785"
+
+# 1. Send Top 20 Rankings (Yesterday and Total)
 for list_item in (top_20_yesterday, top_20_total):
-
-    # Find the maximum width needed for the formatted numbers (for perfect alignment)
-    max_yesterday = max(video["yesterday_views"] for video in list_item)
     max_total = max(video["total_views"] for video in list_item)
-
-    width_yesterday = len(format_japanese_style(max_yesterday))
     width_total = len(format_japanese_style(max_total))
 
-    print("Top 20 Nogizaka46 MVs by views gained yesterday:")
-    print("=" * 80)
-
     result = ""
-
     for i, video in enumerate(list_item, 1):
         yesterday_str = format_japanese_style(video["yesterday_views"])
         total_str = format_japanese_style(video["total_views"])
 
         result += f"{i:2}. {video['title']}\n"
         result += f"昨: {yesterday_str:>{width_total}}\n"
-        result += f"合: {total_str:>{width_total}}\n"
+        result += f"合: {total_str:>{width_total}}\n\n"
 
-        result += "\n"
+    print(result)
 
-        print(result)
-
-    result = "```" + result + "```"
-
-    import time
-    import os
-
-    TELEGRAM_BOT_TOKEN = os.environ["bot_token"]
-    TELEGRAM_CHAT_ID = "-1002350782955"  # os.environ["chat_id"]
+    formatted_msg = "```\n" + result.strip() + "\n```"
+    send_telegram_message(formatted_msg, TELEGRAM_CHAT_ID)
 
 
-    def send_telegram_message(msg, channel_id):
-        max_retries = 5
-        MAX_LENGTH = 3000
+# 2. Find and send separate view stat for "バンドエイド剥がすような別れ方"
+target_song = "バンドエイド剥がすような別れ方"
+matched_video = next(
+    (video for video in videos if target_song in video["title"]), None
+)
 
-        def send_part(part):
-            attempt = 0
-            while attempt < max_retries:
-                try:
-                    payload = {
-                        "message_thread_id": "2030",
-                        "chat_id": "-1002646331785",  # "chat_id": "-1002350782955",
-                        "text": part,
-                        "link_preview_options": {"is_disabled": True},
-                        "parse_mode": "MarkdownV2",
-                    }
-                    response = requests.post(
-                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                        json=payload,
-                    )
-                    response_json = response.json()
-                    if response.ok:
-                        print(response_json)
-                        time.sleep(2)
-                        return
-                    else:
-                        raise Exception(response_json.get("description", "Unknown error"))
-                except Exception as error:
-                    print(f"Error: {error}")
+if matched_video:
+    yesterday_str = format_japanese_style(matched_video["yesterday_views"])
+    total_str = format_japanese_style(matched_video["total_views"])
 
-                attempt += 1
-                print(f"Retrying... ({attempt}/{max_retries})")
-                time.sleep(20)
+    song_stat_text = (
+        f"{matched_video['title']}\n"
+        f"順位: {matched_video['rank']}位\n"
+        f"昨: {yesterday_str}\n"
+        f"合: {total_str}"
+    )
 
-        # Split by \n and accumulate parts <= MAX_LENGTH
-        parts = msg.split("\n")
-        current_part = ""
-        for part in parts:
-            if len(current_part) + len(part) + 1 > MAX_LENGTH:
-                send_part(current_part)
-                current_part = ""
-            current_part += ("" if not current_part else "\n") + part
+    print("Sending separate target song stat:")
+    print(song_stat_text)
 
-        if current_part:
-            send_part(current_part)
-
-
-    send_telegram_message(result, TELEGRAM_CHAT_ID)
+    song_msg = "```\n" + song_stat_text + "\n```"
+    send_telegram_message(song_msg, TELEGRAM_CHAT_ID)
+else:
+    print(f"Target song '{target_song}' was not found in the parsed data.")
