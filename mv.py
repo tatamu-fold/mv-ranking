@@ -32,7 +32,7 @@ def send_telegram_message(msg, channel_id, thread_id="2030"):
                     "parse_mode": "MarkdownV2",
                 }
                 response = requests.post(
-                    f"[https://api.telegram.org/bot](https://api.telegram.org/bot){TELEGRAM_BOT_TOKEN}/sendMessage",
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                     json=payload,
                 )
                 response_json = response.json()
