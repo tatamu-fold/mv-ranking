@@ -105,8 +105,8 @@ for row in rows:
     )
 
 # Sort rankings
-top_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)
-top_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)
+top_20_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)[:20]
+top_20_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)[:20]
 
 TELEGRAM_CHAT_ID = "-1002646331785"
 
@@ -136,8 +136,8 @@ if matched_video:
 
     ranking_data = {
         "videos": videos,
-        "top_yesterday": top_yesterday,
-        "top_total": top_total,
+        "top_20_yesterday": top_20_yesterday,
+        "top_20_total": top_20_total,
         "target_song": {
             **matched_video,
             "yesterday_rank": yesterday_rank,
