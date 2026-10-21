@@ -16,7 +16,7 @@ def format_japanese_style(number):
 
 
 # Telegram JSON document sender function
-def send_telegram_document(data, caption, channel_id, thread_id="2030"):
+def send_telegram_document(data, caption, channel_id):
     TELEGRAM_BOT_TOKEN = os.environ.get("bot_token")
     max_retries = 5
     attempt = 0
@@ -24,10 +24,12 @@ def send_telegram_document(data, caption, channel_id, thread_id="2030"):
     while attempt < max_retries:
         try:
             payload = {
-                "message_thread_id": thread_id,
+                
                 "chat_id": channel_id,
                 "caption": caption,
             }
+            if channel_id.startswith("-1002646331785"):
+                payload["message_thread_id"] = "2030"
             response = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument",
                 data=payload,
@@ -108,8 +110,6 @@ for row in rows:
 top_20_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)[:20]
 top_20_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)[:20]
 
-TELEGRAM_CHAT_ID = "-1002646331785"
-
 # Find target song for the document caption.
 target_song = "バンドエイド剥がすような別れ方"
 matched_video = next(
@@ -129,9 +129,9 @@ if matched_video:
 
     caption = (
         f"{matched_video['title']}\n"
-        f"順位: {yesterday_rank}位\n"
+        f"昨順位: {yesterday_rank}位\n"
         f"昨: {yesterday_str}\n"
-        f"合: {total_str}"
+        f"合: {total_str/10000:.1f}万"
     )
 
     ranking_data = {
@@ -145,6 +145,7 @@ if matched_video:
     }
     print("Sending rankings as one JSON document:")
     print(caption)
-    send_telegram_document(ranking_data, caption, TELEGRAM_CHAT_ID)
+    send_telegram_document(ranking_data, caption, "-1002646331785")
+    send_telegram_document(ranking_data, caption, "-1002350782955")
 else:
     print(f"Target song '{target_song}' was not found in the parsed data.")
