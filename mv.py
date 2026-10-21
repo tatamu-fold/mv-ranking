@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import requests
@@ -14,54 +15,48 @@ def format_japanese_style(number):
     return " ".join(reversed(groups)).strip()
 
 
-# Telegram message sender function
-def send_telegram_message(msg, channel_id, thread_id="2030"):
+# Telegram JSON document sender function
+def send_telegram_document(data, caption, channel_id, thread_id="2030"):
     TELEGRAM_BOT_TOKEN = os.environ.get("bot_token")
     max_retries = 5
-    MAX_LENGTH = 3000
-
-    def send_part(part):
-        attempt = 0
-        while attempt < max_retries:
-            try:
-                payload = {
-                    "message_thread_id": thread_id,
-                    "chat_id": channel_id,
-                    "text": part,
-                    "link_preview_options": {"is_disabled": True},
-                    "parse_mode": "MarkdownV2",
-                }
-                response = requests.post(
-                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                    json=payload,
-                )
-                response_json = response.json()
-                if response.ok:
-                    print(response_json)
-                    time.sleep(2)
-                    return
-                else:
-                    raise Exception(
-                        response_json.get("description", "Unknown error")
+    attempt = 0
+    last_error = None
+    while attempt < max_retries:
+        try:
+            payload = {
+                "message_thread_id": thread_id,
+                "chat_id": channel_id,
+                "caption": caption,
+            }
+            response = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument",
+                data=payload,
+                files={
+                    "document": (
+                        "mv_rankings.json",
+                        json.dumps(data, ensure_ascii=False, indent=2),
+                        "application/json",
                     )
-            except Exception as error:
-                print(f"Error: {error}")
+                },
+            )
+            response_json = response.json()
+            if response.ok:
+                print(response_json)
+                time.sleep(2)
+                return
+            raise RuntimeError(response_json.get("description", "Unknown error"))
+        except (requests.RequestException, ValueError, RuntimeError) as error:
+            last_error = error
+            print(f"Error: {error}")
 
-            attempt += 1
-            print(f"Retrying... ({attempt}/{max_retries})")
+        attempt += 1
+        print(f"Retrying... ({attempt}/{max_retries})")
+        if attempt < max_retries:
             time.sleep(20)
 
-    # Split by \n and accumulate parts <= MAX_LENGTH
-    parts = msg.split("\n")
-    current_part = ""
-    for part in parts:
-        if len(current_part) + len(part) + 1 > MAX_LENGTH:
-            send_part(current_part)
-            current_part = ""
-        current_part += ("" if not current_part else "\n") + part
-
-    if current_part:
-        send_part(current_part)
+    raise RuntimeError(
+        f"Failed to send rankings after {max_retries} attempts"
+    ) from last_error
 
 
 # -------------------------------------------------------------
@@ -110,32 +105,12 @@ for row in rows:
     )
 
 # Sort rankings
-top_20_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)[:20]
-top_20_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)[:20]
+top_yesterday = sorted(videos, key=lambda x: x["yesterday_views"], reverse=True)
+top_total = sorted(videos, key=lambda x: x["total_views"], reverse=True)
 
 TELEGRAM_CHAT_ID = "-1002646331785"
 
-# 1. Send Top 20 Rankings (Yesterday and Total)
-for list_item in (top_20_yesterday, top_20_total):
-    max_total = max(video["total_views"] for video in list_item)
-    width_total = len(format_japanese_style(max_total))
-
-    result = ""
-    for i, video in enumerate(list_item, 1):
-        yesterday_str = format_japanese_style(video["yesterday_views"])
-        total_str = format_japanese_style(video["total_views"])
-
-        result += f"{i:2}. {video['title']}\n"
-        result += f"昨: {yesterday_str:>{width_total}}\n"
-        result += f"合: {total_str:>{width_total}}\n\n"
-
-    print(result)
-
-    formatted_msg = "```\n" + result.strip() + "\n```"
-    send_telegram_message(formatted_msg, TELEGRAM_CHAT_ID)
-
-
-# 2. Find and send separate view stat for "バンドエイド剥がすような別れ方"
+# Find target song for the document caption.
 target_song = "バンドエイド剥がすような別れ方"
 matched_video = next(
     (video for video in videos if target_song in video["title"]), None
@@ -144,18 +119,32 @@ matched_video = next(
 if matched_video:
     yesterday_str = format_japanese_style(matched_video["yesterday_views"])
     total_str = format_japanese_style(matched_video["total_views"])
+    yesterday_rank = next(
+        rank
+        for rank, video in enumerate(
+            sorted(videos, key=lambda x: x["yesterday_views"], reverse=True), 1
+        )
+        if video is matched_video
+    )
 
-    song_stat_text = (
+    caption = (
         f"{matched_video['title']}\n"
-        f"順位: {matched_video['rank']}位\n"
+        f"順位: {yesterday_rank}位\n"
         f"昨: {yesterday_str}\n"
         f"合: {total_str}"
     )
 
-    print("Sending separate target song stat:")
-    print(song_stat_text)
-
-    song_msg = "```\n" + song_stat_text + "\n```"
-    send_telegram_message(song_msg, TELEGRAM_CHAT_ID)
+    ranking_data = {
+        "videos": videos,
+        "top_yesterday": top_yesterday,
+        "top_total": top_total,
+        "target_song": {
+            **matched_video,
+            "yesterday_rank": yesterday_rank,
+        },
+    }
+    print("Sending rankings as one JSON document:")
+    print(caption)
+    send_telegram_document(ranking_data, caption, TELEGRAM_CHAT_ID)
 else:
     print(f"Target song '{target_song}' was not found in the parsed data.")
