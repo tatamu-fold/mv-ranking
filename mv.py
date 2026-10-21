@@ -117,8 +117,8 @@ matched_video = next(
 )
 
 if matched_video:
-    yesterday_str = format_japanese_style(matched_video["yesterday_views"])
-    total_str = format_japanese_style(matched_video["total_views"])
+    yesterday_str = (matched_video["yesterday_views"])
+    total_str = (matched_video["total_views"])
     yesterday_rank = next(
         rank
         for rank, video in enumerate(
@@ -131,7 +131,7 @@ if matched_video:
         f"{matched_video['title']}\n"
         f"昨順位: {yesterday_rank}位\n"
         f"昨: {yesterday_str}\n"
-        f"合: {int(total_str)/10000:.1f}万"
+        f"合: {int(total_str)/10000:.0f}万"
     )
 
     ranking_data = {
