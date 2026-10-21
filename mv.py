@@ -131,7 +131,7 @@ if matched_video:
         f"{matched_video['title']}\n"
         f"昨順位: {yesterday_rank}位\n"
         f"昨: {yesterday_str}\n"
-        f"合: {total_str/10000:.1f}万"
+        f"合: {int(total_str)/10000:.1f}万"
     )
 
     ranking_data = {
